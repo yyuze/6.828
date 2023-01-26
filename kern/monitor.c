@@ -24,6 +24,7 @@ struct Command {
 static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
+    { "backtrace", "Display the kernel stack backtrace", mon_backtrace },
 };
 
 /***** Implementations of basic kernel monitor commands *****/
@@ -54,10 +55,31 @@ mon_kerninfo(int argc, char **argv, struct Trapframe *tf)
 	return 0;
 }
 
-int
-mon_backtrace(int argc, char **argv, struct Trapframe *tf)
+int __attribute__((noinline))mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
+    if (tf == NULL)
+        cprintf("Stack backtrace:\n");
 	// Your code here.
+    uint32_t cur_ebp = tf == NULL ? read_ebp() : tf->ebp;
+    struct {
+        struct Trapframe cur_frame;
+        uint32_t args[5];
+    } invoc;
+    memcpy(&invoc, (void *)cur_ebp, sizeof(invoc));
+    cprintf("  ebp %08x  eip %08x  args %08x %08x %08x %08x %08x\n",
+            invoc.cur_frame.ebp, invoc.cur_frame.eip,
+            invoc.args[0], invoc.args[1], invoc.args[2], invoc.args[3], invoc.args[4]);
+
+    struct Eipdebuginfo info;
+    debuginfo_eip(invoc.cur_frame.eip, &info);
+    cprintf("         %s:%u: %.*s+%u\n",
+            info.eip_file, info.eip_line,
+            info.eip_fn_namelen, info.eip_fn_name,
+            invoc.cur_frame.eip - info.eip_fn_addr);
+    if (invoc.cur_frame.ebp == 0) {
+        return 0;
+    }
+    mon_backtrace(argc, argv, &invoc.cur_frame);
 	return 0;
 }
 
