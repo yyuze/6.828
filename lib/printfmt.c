@@ -75,6 +75,18 @@ getint(va_list *ap, int lflag)
 		return va_arg(*ap, int);
 }
 
+//static void put_oct_char(unsigned long long quot,
+//                  unsigned long long reminder,
+//                  void (*putch)(int, void*),
+//                  void *putdat)
+//{
+//    if (quot == 0) {
+//        putch(reminder + '0', putdat);
+//        return;
+//    }
+//    put_oct_char(quot / 8, quot % 8, putch, putdat);
+//    putch(reminder + '0', putdat);
+//}
 
 // Main function to format and print a string.
 void printfmt(void (*putch)(int, void*), void *putdat, const char *fmt, ...);
@@ -206,10 +218,12 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 		// (unsigned) octal
 		case 'o':
 			// Replace this with your code.
-			putch('X', putdat);
-			putch('X', putdat);
-			putch('X', putdat);
-			break;
+			//num = (unsigned long long)(uintptr_t) va_arg(ap, void *);
+            //put_oct_char(num / 8, num % 8, putch, putdat);
+			//break;
+			num = getuint(&ap, lflag);
+            base = 8;
+            goto number;
 
 		// pointer
 		case 'p':
