@@ -141,6 +141,22 @@
 #ifndef __ASSEMBLER__
 
 typedef uint32_t pte_t;
+
+typedef union {
+    uint32_t val;
+    struct {
+        uint32_t P       : 1; /* present */
+        uint32_t R_W     : 1; /* 0: read only;   1: read and write */
+        uint32_t U_S     : 1; /* 0: supervisor;  1: user */
+        uint32_t RESV1   : 2;
+        uint32_t A       : 1;
+        uint32_t D       : 1; /* dirty */
+        uint32_t RESV0   : 2;
+        uint32_t AVAIL   : 3;
+        uint32_t PA      : 20;
+    } bits;
+} PTE;
+
 typedef uint32_t pde_t;
 
 #if JOS_USER
