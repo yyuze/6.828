@@ -149,12 +149,14 @@ mem_init(void)
 	// array.  'npages' is the number of physical pages in memory.  Use memset
 	// to initialize all fields of each struct PageInfo to 0.
 	// Your code goes here:
-	pages = (struct PageInfo *) boot_alloc(sizeof(struct PageInfo) * npages);
+	pages = (struct PageInfo *)boot_alloc(sizeof(struct PageInfo) * npages);
     memset((void *)pages, 0, sizeof(struct PageInfo) * npages);
 
 	//////////////////////////////////////////////////////////////////////
 	// Make 'envs' point to an array of size 'NENV' of 'struct Env'.
 	// LAB 3: Your code here.
+    envs = (struct Env *)boot_alloc(sizeof(struct Env) * NENV);
+    memset((void *)envs, 0, sizeof(struct Env) * NENV);
 
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
@@ -193,6 +195,11 @@ mem_init(void)
 	//    - the new image at UENVS  -- kernel R, user R
 	//    - envs itself -- kernel RW, user NONE
 	// LAB 3: Your code here.
+    boot_map_region(kern_pgdir,
+                    UENVS,
+                    ROUNDUP(sizeof(struct Env) * NENV, PGSIZE),
+                    PADDR(envs),
+                    PTE_U | PTE_P);
 
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
@@ -540,7 +547,7 @@ end:
 //     the page table.
 //
 // Hint: The TA solution is implemented using page_lookup,
-// 	tlb_invalidate, and page_decref.
+//	tlb_invalidate, and page_decref.
 //
 void
 page_remove(pde_t *pgdir, void *va)
@@ -594,8 +601,33 @@ int
 user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 {
 	// LAB 3: Your code here.
-
-	return 0;
+    int ret = 0;
+    len = ROUNDUP(len, PGSIZE);
+    for (size_t i = 0; i < len; i += PGSIZE) {
+        uintptr_t addr = i == 0 ? (uintptr_t)va : ROUNDDOWN((uintptr_t)va + i, PGSIZE);
+        if (addr > ULIM) {
+            DBG("%d\n", __LINE__);
+            user_mem_check_addr = addr;
+            ret = -E_FAULT;
+            goto end;
+        }
+        pte_t *pte = pgdir_walk(env->env_pgdir, (void *)addr, 0);
+        if (pte == NULL || (*pte & PTE_P) == 0) {
+            DBG("%d\n", __LINE__);
+            user_mem_check_addr = addr;
+            ret = -E_FAULT;
+            goto end;
+        }
+        if (((perm & PTE_U) != 0 && (*pte & PTE_U) == 0) ||
+            ((perm & PTE_W) != 0 && (*pte & PTE_W) == 0)) {
+            DBG("%d\n", __LINE__);
+            user_mem_check_addr = addr;
+            ret = -E_FAULT;
+            goto end;
+        }
+    }
+end:
+    return ret;
 }
 
 //

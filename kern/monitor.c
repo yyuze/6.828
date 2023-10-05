@@ -11,6 +11,7 @@
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
 #include <kern/trap.h>
+#include <kern/env.h>
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
@@ -27,6 +28,8 @@ static struct Command commands[] = {
     { "backtrace", "Display the kernel stack backtrace", mon_backtrace },
     { "mapinfo", "Display map info of [va, va + len)", mon_mapinfo},
     { "memdump", "Display mem bytes on [addr, addr + len)", mon_memdump},
+    { "cont", "Continue breakpoint", mon_continue},
+    { "si", "single step forward", mon_step},
 };
 
 /***** Implementations of basic kernel monitor commands *****/
@@ -217,6 +220,34 @@ help:
     INFO("[-p] start size: dump memory [start, start + size)\n");
     INFO("-p: dump physical memory\n");
 end:
+    return 0;
+}
+
+static inline void set_eflags(uint32_t flags)
+{
+    uint32_t eflags = read_eflags();
+    eflags |= flags;
+    write_eflags(eflags);
+}
+
+static inline void clear_eflags(uint32_t flags)
+{
+    uint32_t eflags = read_eflags();
+    eflags &= (~flags);
+    write_eflags(eflags);
+}
+
+int mon_step(int argc, char **argv, struct Trapframe *tf)
+{
+    // TODO: parse the next instruction and replaced first byte with "int 3" instruction"
+    env_pop_tf(tf);
+    return 0;
+}
+
+int mon_continue(int argc, char **argv, struct Trapframe *tf)
+{
+    set_eflags(FL_RF);
+    env_pop_tf(tf);
     return 0;
 }
 

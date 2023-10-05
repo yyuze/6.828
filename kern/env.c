@@ -116,6 +116,15 @@ env_init(void)
 {
 	// Set up envs array
 	// LAB 3: Your code here.
+    env_free_list = NULL;
+    struct Env **tail = &env_free_list;
+    for (size_t i = 0; i < NENV; ++i) {
+        struct Env *env = &envs[i];
+        env->env_id = 0;
+        env->env_link = NULL;
+        *tail = env;
+        tail = &env->env_link;
+    }
 
 	// Per-CPU part of the initialization
 	env_init_percpu();
@@ -155,12 +164,17 @@ env_init_percpu(void)
 static int
 env_setup_vm(struct Env *e)
 {
+    int ret = 0;
+
 	int i;
 	struct PageInfo *p = NULL;
 
 	// Allocate a page for the page directory
-	if (!(p = page_alloc(ALLOC_ZERO)))
-		return -E_NO_MEM;
+	if (!(p = page_alloc(ALLOC_ZERO))) {
+        ret = -E_NO_MEM;
+        ERR("allocate page directory failed\n");
+        goto end;
+    }
 
 	// Now, set e->env_pgdir and initialize the page directory.
 	//
@@ -179,12 +193,16 @@ env_setup_vm(struct Env *e)
 	//    - The functions in kern/pmap.h are handy.
 
 	// LAB 3: Your code here.
+    p->pp_ref++;
+    e->env_pgdir = KADDR(page2pa(p));
+    memcpy(e->env_pgdir, (void *)kern_pgdir, PGSIZE);
 
 	// UVPT maps the env's own page table read-only.
 	// Permissions: kernel R, user R
 	e->env_pgdir[PDX(UVPT)] = PADDR(e->env_pgdir) | PTE_P | PTE_U;
 
-	return 0;
+end:
+	return ret;
 }
 
 //
@@ -267,6 +285,17 @@ region_alloc(struct Env *e, void *va, size_t len)
 	//   'va' and 'len' values that are not page-aligned.
 	//   You should round va down, and round (va + len) up.
 	//   (Watch out for corner-cases!)
+    int ret = 0;
+    uintptr_t addr = ROUNDDOWN((uintptr_t)va, PGSIZE);
+    size_t size = ROUNDUP(len, PGSIZE);
+    for (size_t acc = 0; acc < size; acc += PGSIZE) {
+        struct PageInfo *pp = page_alloc(0);
+        if (pp == NULL)
+            panic("allocate page failed\n");
+        ret = page_insert(e->env_pgdir, pp, (void *)(addr + acc), PTE_U | PTE_W | PTE_P);
+        if (ret != 0)
+            panic("insert page to pagetable failed, %e\n", ret);
+    }
 }
 
 //
@@ -323,11 +352,48 @@ load_icode(struct Env *e, uint8_t *binary)
 	//  What?  (See env_run() and env_pop_tf() below.)
 
 	// LAB 3: Your code here.
+    struct Elf *elf = (struct Elf *)binary;
+    if (elf->e_magic != ELF_MAGIC)
+        panic("invalid elf magic: %x, expect: %x\n", elf->e_magic, ELF_MAGIC);
+    struct Proghdr *phdrs = (struct Proghdr *)((uintptr_t)binary + elf->e_phoff);
+    for (uint16_t i = 0; i < elf->e_phnum; ++i) {
+        struct Proghdr *phdr = &phdrs[i];
+        if (phdr->p_type != ELF_PROG_LOAD)
+            continue;
+        /* load segment */
+        void *seg_addr = (void *)ROUNDDOWN(phdr->p_va, PGSIZE);
+        uintptr_t offset = phdr->p_va - (uintptr_t)seg_addr;
+        size_t seg_size = ROUNDUP(phdr->p_memsz, PGSIZE);
+        region_alloc(e, seg_addr, seg_size);
+        /* copy segment from kernel to environment */
+        void *src = (void *)((uintptr_t)binary + phdr->p_offset);
+        uint32_t src_sz = phdr->p_filesz;
+        uint32_t acc = 0;
+        uint32_t seg_offset = 0;
+        while (seg_offset != seg_size) {
+            uint32_t cnt = src_sz - acc > PGSIZE ? PGSIZE : src_sz - acc;
+            struct PageInfo *pp = page_lookup(e->env_pgdir, (void *)((uintptr_t)seg_addr + seg_offset), NULL);
+            if (pp == NULL)
+                panic("get physical page from env failed\n");
+            void *dst = (void *)(KADDR(page2pa(pp)));
+            memset(dst, 0, PGSIZE);
+            if (acc == 0) {
+                cnt -= offset;
+                dst = (void *)((uintptr_t)dst + offset);
+            }
+            if (cnt > 0)
+                memcpy(dst, src + acc, cnt - offset);
+            acc += cnt;
+            seg_offset += PGSIZE;
+        }
+    }
+    e->env_tf.tf_eip = (uintptr_t)elf->e_entry;
 
 	// Now map one page for the program's initial stack
 	// at virtual address USTACKTOP - PGSIZE.
 
 	// LAB 3: Your code here.
+    region_alloc(e, (void *)(USTACKTOP - PGSIZE), PGSIZE);
 }
 
 //
@@ -341,6 +407,14 @@ void
 env_create(uint8_t *binary, enum EnvType type)
 {
 	// LAB 3: Your code here.
+    int ret = 0;
+    struct Env *env = NULL;
+    ret = env_alloc(&env, 0);
+    if (ret != 0) {
+        panic("allocate env failed, %e\n", ret);
+    }
+    load_icode(env, binary);
+    env->env_type = type;
 }
 
 //
@@ -457,7 +531,12 @@ env_run(struct Env *e)
 	//	e->env_tf to sensible values.
 
 	// LAB 3: Your code here.
-
-	panic("env_run not yet implemented");
+    if (curenv != NULL && curenv->env_status == ENV_RUNNING)
+        curenv->env_status = ENV_RUNNABLE;
+    curenv = e;
+    curenv->env_status = ENV_RUNNING;
+    curenv->env_runs++;
+    lcr3(PADDR(curenv->env_pgdir));
+    env_pop_tf(&curenv->env_tf);
 }
 

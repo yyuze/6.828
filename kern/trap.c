@@ -58,6 +58,8 @@ static const char *trapname(int trapno)
 	return "(unknown trap)";
 }
 
+#define SET_IDT(num, istrap, hdl, dpl) \
+    SETGATE(idt[(num)], (istrap), GD_KT, hdl, dpl) /* SETGATE: sel = GD_KT, dpl = 0 */
 
 void
 trap_init(void)
@@ -65,8 +67,28 @@ trap_init(void)
 	extern struct Segdesc gdt[];
 
 	// LAB 3: Your code here.
+    SET_IDT(T_DIVIDE,   false,  trap_devide,                        0);
+    SET_IDT(T_DEBUG,    true,   trap_debug,                         3);
+    SET_IDT(T_NMI,      false,  trap_non_mask_interrupt,            0); /* is trap ? */
+    SET_IDT(T_BRKPT,    true,   trap_breakpointer,                  3);
+    SET_IDT(T_OFLOW,    true,   trap_overflow,                      0);
+    SET_IDT(T_BOUND,    false,  trap_bounds_check,                  0);
+    SET_IDT(T_ILLOP,    false,  trap_illegal_opcode,                0);
+    SET_IDT(T_DEVICE,   false,  trap_device_not_available,          0);
+    SET_IDT(T_DBLFLT,   false,  trap_double_fault,                  0);
+    SET_IDT(T_TSS,      false,  trap_invalid_task_switch_segment,   0);
+    SET_IDT(T_SEGNP,    false,  trap_segment_not_present,           0);
+    SET_IDT(T_STACK,    false,  trap_stack_exception,               0);
+    SET_IDT(T_GPFLT,    false,  trap_general_protection_fault,      0);
+    SET_IDT(T_PGFLT,    false,  trap_page_fault,                    0);
+    SET_IDT(T_FPERR,    false,  trap_floating_point_error,          0);
+    SET_IDT(T_ALIGN,    false,  trap_alignment_check,               0);
+    SET_IDT(T_MCHK,     false,  trap_machine_check,                 0);
+    SET_IDT(T_SIMDERR,  false,  trap_SIMD_floating_point_error,     0);
+    SET_IDT(T_SIMDERR,  false,  trap_SIMD_floating_point_error,     0);
+    SET_IDT(T_SYSCALL,  true,   trap_syscall,                       3);
 
-	// Per-CPU setup 
+	// Per-CPU setup
 	trap_init_percpu();
 }
 
@@ -139,11 +161,38 @@ print_regs(struct PushRegs *regs)
 	cprintf("  eax  0x%08x\n", regs->reg_eax);
 }
 
+static void syscall_handler(struct Trapframe *tf)
+{
+    struct PushRegs *regs = &tf->tf_regs;
+    uint32_t syscallno = regs->reg_eax;
+    uint32_t a1 = regs->reg_edx;
+    uint32_t a2 = regs->reg_ecx;
+    uint32_t a3 = regs->reg_ebx;
+    uint32_t a4 = regs->reg_edi;
+    uint32_t a5 = regs->reg_esi;
+    asm("movl %0,%%eax" : : "r" (syscall(syscallno, a1, a2, a3, a4, a5)));
+}
+
 static void
 trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
+    switch(tf->tf_trapno) {
+        case T_PGFLT:
+            page_fault_handler(tf);
+            break;
+        case T_DEBUG:
+        case T_BRKPT:
+            monitor(tf);
+            break;
+        case T_SYSCALL:
+            syscall_handler(tf);
+            env_pop_tf(tf);
+            break;
+        default:
+            break;
+    }
 
 	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);
@@ -205,6 +254,9 @@ page_fault_handler(struct Trapframe *tf)
 	// Handle kernel-mode page faults.
 
 	// LAB 3: Your code here.
+	if (tf->tf_cs == GD_KT)
+        panic("page fault in kernel, va: 0x%08x, ip: 0x%08x\n",
+               fault_va, tf->tf_eip);
 
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.
@@ -215,4 +267,3 @@ page_fault_handler(struct Trapframe *tf)
 	print_trapframe(tf);
 	env_destroy(curenv);
 }
-
