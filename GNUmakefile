@@ -48,6 +48,7 @@ GCCPREFIX := $(shell if i386-jos-elf-objdump -i 2>&1 | grep '^elf32-i386$$' >/de
 endif
 
 # try to infer the correct QEMU
+#QEMU := /root/projects/6.828/qemu/bin/qemu-system-i386
 ifndef QEMU
 QEMU := $(shell if which qemu >/dev/null 2>&1; \
 	then echo qemu; exit; \
@@ -144,8 +145,7 @@ include user/Makefrag
 
 
 CPUS ?= 1
-
-QEMUOPTS = -drive file=$(OBJDIR)/kern/kernel.img,index=0,media=disk,format=raw -serial mon:stdio -gdb tcp::$(GDBPORT)
+QEMUOPTS = -drive file=$(OBJDIR)/kern/kernel.img,index=0,media=disk,format=raw -monitor tcp:localhost:22222 -serial mon:stdio -gdb tcp::$(GDBPORT)
 QEMUOPTS += $(shell if $(QEMU) -nographic -help | grep -q '^-D '; then echo '-D qemu.log'; fi)
 IMAGES = $(OBJDIR)/kern/kernel.img
 QEMUOPTS += -smp $(CPUS)

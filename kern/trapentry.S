@@ -47,10 +47,43 @@
 /*
  * Lab 3: Your code here for generating entry points for the different traps.
  */
-
-
+TRAPHANDLER_NOEC(trap_devide, T_DIVIDE)
+TRAPHANDLER_NOEC(trap_debug, T_DEBUG)
+TRAPHANDLER_NOEC(trap_non_mask_interrupt, T_NMI)
+TRAPHANDLER_NOEC(trap_breakpointer, T_BRKPT)
+TRAPHANDLER_NOEC(trap_overflow, T_OFLOW)
+TRAPHANDLER_NOEC(trap_bounds_check, T_BOUND)
+TRAPHANDLER_NOEC(trap_illegal_opcode, T_ILLOP)
+TRAPHANDLER_NOEC(trap_device_not_available, T_DEVICE)
+TRAPHANDLER(trap_double_fault, T_DBLFLT)
+TRAPHANDLER(trap_invalid_task_switch_segment, T_TSS)
+TRAPHANDLER(trap_segment_not_present, T_SEGNP)
+TRAPHANDLER(trap_stack_exception, T_STACK)
+TRAPHANDLER(trap_general_protection_fault, T_GPFLT)
+TRAPHANDLER(trap_page_fault, T_PGFLT)
+TRAPHANDLER_NOEC(trap_floating_point_error, T_FPERR)
+TRAPHANDLER_NOEC(trap_alignment_check, T_ALIGN)
+TRAPHANDLER_NOEC(trap_machine_check, T_MCHK)
+TRAPHANDLER_NOEC(trap_SIMD_floating_point_error, T_SIMDERR)
+TRAPHANDLER_NOEC(trap_syscall, T_SYSCALL)
 
 /*
  * Lab 3: Your code here for _alltraps
  */
+.globl _alltraps;
+_alltraps:
+    /* according to https://pdos.csail.mit.edu/6.828/2018/readings/i386/INT.htm --- INTERRUPT-FROM-V86-MODE */
+    # pushl (32)(%esp)    /* tf_padding2 : tf_ds, bug for qemu, expect: 0x23 */
+    # pushl (32)(%esp)    /* tf_padding1 : tf_es, bug for qemu, expect: 0x23 */
+    pushw $0;           /* tf_padding2 */
+    pushw %ds;          /* tf_ds */
+    pushw $0;           /* tf_padding1 */
+    pushw %es;          /* tf_es */
+    pushal;             /* tf_regs */
+    pushl %esp;         /* struct Trapframe* */
 
+    movw $GD_KD, %ax
+    movw %ax, %ds;
+    movw %ax, %es;
+
+    call trap;

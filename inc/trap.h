@@ -86,6 +86,27 @@ struct UTrapframe {
 	uintptr_t utf_esp;
 } __attribute__((packed));
 
+void trap_devide(void);
+void trap_debug(void);
+void trap_non_mask_interrupt(void);
+void trap_breakpointer(void);
+void trap_overflow(void);
+void trap_bounds_check(void);
+void trap_illegal_opcode(void);
+void trap_device_not_available(void);
+void trap_double_fault(void);
+void trap_invalid_task_switch_segment(void);
+void trap_segment_not_present(void);
+void trap_stack_exception(void);
+void trap_general_protection_fault(void);
+void trap_page_fault(void);
+void trap_floating_point_error(void);
+void trap_alignment_check(void);
+void trap_machine_check(void);
+void trap_SIMD_floating_point_error(void);
+void trap_SIMD_floating_point_error(void);
+void trap_syscall(void);
+
 #endif /* !__ASSEMBLER__ */
 
 #endif /* !JOS_INC_TRAP_H */
