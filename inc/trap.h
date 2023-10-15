@@ -107,6 +107,23 @@ void trap_SIMD_floating_point_error(void);
 void trap_SIMD_floating_point_error(void);
 void trap_syscall(void);
 
+void trap_irq_0(void);
+void trap_irq_1(void);
+void trap_irq_2(void);
+void trap_irq_3(void);
+void trap_irq_4(void);
+void trap_irq_5(void);
+void trap_irq_6(void);
+void trap_irq_7(void);
+void trap_irq_8(void);
+void trap_irq_9(void);
+void trap_irq_10(void);
+void trap_irq_11(void);
+void trap_irq_12(void);
+void trap_irq_13(void);
+void trap_irq_14(void);
+void trap_irq_15(void);
+
 #endif /* !__ASSEMBLER__ */
 
 #endif /* !JOS_INC_TRAP_H */

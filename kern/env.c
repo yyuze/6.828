@@ -26,7 +26,7 @@ static struct Env *env_free_list;	// Free environment list
 // Set up global descriptor table (GDT) with separate segments for
 // kernel mode and user mode.  Segments serve many purposes on the x86.
 // We don't use any of their memory-mapping capabilities, but we need
-// them to switch privilege levels. 
+// them to switch privilege levels.
 //
 // The kernel and user segments are identical except for the DPL.
 // To load the SS register, the CPL must equal the DPL.  Thus,
@@ -125,6 +125,7 @@ env_init(void)
         struct Env *env = &envs[i];
         env->env_id = 0;
         env->env_link = NULL;
+        env->env_status = ENV_NOT_RUNNABLE;
         *tail = env;
         tail = &env->env_link;
     }
@@ -265,6 +266,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 
 	// Enable interrupts while in user mode.
 	// LAB 4: Your code here.
+    e->env_tf.tf_eflags = FL_IF;
 
 	// Clear the page fault handler until user installs one.
 	e->env_pgfault_upcall = 0;
@@ -394,7 +396,7 @@ load_icode(struct Env *e, uint8_t *binary)
                 dst = (void *)((uintptr_t)dst + offset);
             }
             if (cnt > 0)
-                memcpy(dst, src + acc, cnt - offset);
+                memcpy(dst, src + acc, cnt);
             acc += cnt;
             seg_offset += PGSIZE;
         }
@@ -518,6 +520,7 @@ env_pop_tf(struct Trapframe *tf)
 {
 	// Record the CPU we are running on for user-space debugging
 	curenv->env_cpunum = cpunum();
+    unlock_kernel();
 
 	asm volatile(
 		"\tmovl %0,%%esp\n"

@@ -221,18 +221,18 @@ mem_init(void)
      *  ------- ...
      *  ------- KSTACKTOP - PTSIZE
      */
-    boot_map_region(kern_pgdir,
-                    KSTACKTOP - KSTKSIZE,
-                    KSTKSIZE,
-                    PADDR(bootstack),
-                    PTE_W);
-    for (uintptr_t va = KSTACKTOP - PTSIZE; va <  KSTACKTOP - KSTKSIZE; va += PGSIZE) {
-        pte_t *pte = pgdir_walk(kern_pgdir, (void *)va, 1);
-        if (pte == NULL) {
-            panic("get kernel stack guard pte failed\n");
-        }
-        *pte = 0;
-    }
+    //boot_map_region(kern_pgdir,
+    //                KSTACKTOP - KSTKSIZE,
+    //                KSTKSIZE,
+    //                PADDR(bootstack),
+    //                PTE_W);
+    //for (uintptr_t va = KSTACKTOP - PTSIZE; va <  KSTACKTOP - KSTKSIZE; va += PGSIZE) {
+    //    pte_t *pte = pgdir_walk(kern_pgdir, (void *)va, 1);
+    //    if (pte == NULL) {
+    //        panic("get kernel stack guard pte failed\n");
+    //    }
+    //    *pte = 0;
+    //}
 
 	//////////////////////////////////////////////////////////////////////
 	// Map all of physical memory at KERNBASE.
@@ -249,6 +249,7 @@ mem_init(void)
                     PTE_W);
 
 	// Initialize the SMP-related parts of the memory map
+    /* init per-cpu kernel stacks */
 	mem_init_mp();
 
 	// Check that the initial page directory has been set up correctly.
@@ -298,7 +299,22 @@ mem_init_mp(void)
 	//     Permissions: kernel RW, user NONE
 	//
 	// LAB 4: Your code here:
-
+    uintptr_t stack_top = KSTACKTOP;
+    for (size_t i = 0; i < NCPU; ++i) {
+        boot_map_region(kern_pgdir,
+                        stack_top - KSTKSIZE,
+                        KSTKSIZE,
+                        PADDR(percpu_kstacks[i]),
+                        PTE_W);
+        /* clear pte of guard pages */
+        for (uintptr_t va = stack_top - KSTKSIZE - KSTKGAP; va < stack_top - KSTKSIZE; va += PGSIZE) {
+            pte_t *pte = pgdir_walk(kern_pgdir, (void *)va, 1);
+            if (pte == NULL)
+                panic("get pte of guard page failed\n");
+            *pte = 0;
+        }
+        stack_top -= KSTKSIZE + KSTKGAP;
+    }
 }
 
 // --------------------------------------------------------------
@@ -330,9 +346,17 @@ page_init(void)
 	//  2) The rest of base memory, [PGSIZE, npages_basemem * PGSIZE)
 	//     is free.
     for (size_t i = 1; i < npages_basemem; ++i) {
-        pages[i].pp_ref = 0;
-        pages[i].pp_link = page_free_list;
-        page_free_list = &pages[i];
+        extern unsigned char mpentry_start[], mpentry_end[];
+        size_t smp_boot_mem_sz = ROUNDUP((uintptr_t)mpentry_end - (uintptr_t)mpentry_start, PGSIZE);
+        struct PageInfo *page = &pages[i];
+        if (page2pa(page) >= MPENTRY_PADDR && page2pa(page) + smp_boot_mem_sz) {
+            page->pp_ref = 1;
+            page->pp_link = NULL;
+        } else {
+            page->pp_ref = 0;
+            page->pp_link = page_free_list;
+            page_free_list = page;
+        }
     }
 	//  3) Then comes the IO hole [IOPHYSMEM, EXTPHYSMEM), which must
 	//     never be allocated.
@@ -643,7 +667,17 @@ mmio_map_region(physaddr_t pa, size_t size)
 	// Hint: The staff solution uses boot_map_region.
 	//
 	// Your code here:
-	panic("mmio_map_region not implemented");
+    size = ROUNDUP(size, PGSIZE);
+    if (base + size > MMIOLIM)
+        panic("mmio memory overflowed\n");
+    uintptr_t va = base;
+    boot_map_region(kern_pgdir,
+                    va,
+                    size,
+                    pa,
+                    PTE_PCD | PTE_PWT | PTE_W);
+    base += size;
+    return (void *)va;
 }
 
 static uintptr_t user_mem_check_addr;
@@ -675,21 +709,18 @@ user_mem_check(struct Env *env, const void *va, size_t len, int perm)
     for (size_t i = 0; i < len; i += PGSIZE) {
         uintptr_t addr = i == 0 ? (uintptr_t)va : ROUNDDOWN((uintptr_t)va + i, PGSIZE);
         if (addr > ULIM) {
-            DBG("%d\n", __LINE__);
             user_mem_check_addr = addr;
             ret = -E_FAULT;
             goto end;
         }
         pte_t *pte = pgdir_walk(env->env_pgdir, (void *)addr, 0);
         if (pte == NULL || (*pte & PTE_P) == 0) {
-            DBG("%d\n", __LINE__);
             user_mem_check_addr = addr;
             ret = -E_FAULT;
             goto end;
         }
         if (((perm & PTE_U) != 0 && (*pte & PTE_U) == 0) ||
             ((perm & PTE_W) != 0 && (*pte & PTE_W) == 0)) {
-            DBG("%d\n", __LINE__);
             user_mem_check_addr = addr;
             ret = -E_FAULT;
             goto end;
