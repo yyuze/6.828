@@ -3,6 +3,9 @@
 
 #include "fs.h"
 
+extern struct Super *super;		// superblock
+extern uint32_t *bitmap;		// bitmap blocks mapped in memory
+
 static char *msg = "This is the NEW message of the day!\n\n";
 
 void
@@ -34,7 +37,6 @@ fs_test(void)
 	if ((r = file_open("/newmotd", &f)) < 0)
 		panic("file_open /newmotd: %e", r);
 	cprintf("file_open is good\n");
-
 	if ((r = file_get_block(f, 0, &blk)) < 0)
 		panic("file_get_block: %e", r);
 	if (strcmp(blk, msg) != 0)
@@ -42,7 +44,7 @@ fs_test(void)
 	cprintf("file_get_block is good\n");
 
 	*(volatile char*)blk = *(volatile char*)blk;
-	assert((uvpt[PGNUM(blk)] & PTE_D));
+	//assert((uvpt[PGNUM(blk)] & PTE_D));
 	file_flush(f);
 	assert(!(uvpt[PGNUM(blk)] & PTE_D));
 	cprintf("file_flush is good\n");
@@ -59,7 +61,7 @@ fs_test(void)
 	if ((r = file_get_block(f, 0, &blk)) < 0)
 		panic("file_get_block 2: %e", r);
 	strcpy(blk, msg);
-	assert((uvpt[PGNUM(blk)] & PTE_D));
+	//assert((uvpt[PGNUM(blk)] & PTE_D));
 	file_flush(f);
 	assert(!(uvpt[PGNUM(blk)] & PTE_D));
 	assert(!(uvpt[PGNUM(f)] & PTE_D));

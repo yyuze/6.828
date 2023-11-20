@@ -14,7 +14,7 @@
 static void
 pgfault(struct UTrapframe *utf)
 {
-	void *addr = (void *) utf->utf_fault_va;
+	void *addr = (void *) ROUNDDOWN(utf->utf_fault_va, PGSIZE);
 	uint32_t err = utf->utf_err;
 	int r = 0;
 
@@ -24,12 +24,12 @@ pgfault(struct UTrapframe *utf)
 	//   Use the read-only page table mappings at uvpt
 	//   (see <inc/memlayout.h>).
 	// LAB 4: Your code here.
+    unsigned pn = ((uintptr_t)addr) >> 12;
+    pte_t pte = uvpt[pn];
     if ((err & FEC_WR) == 0) {
         ERR("page fault is not caused by write access\n");
         goto err;
     }
-    unsigned pn = ((uintptr_t)addr) >> 12;
-    pte_t pte = uvpt[pn];
     if ((pte & PTE_COW) == 0) {
         ERR("page is not COW, pte: 0x%08x, 0x%08x\n", pte, (uintptr_t)addr);
         goto err;
@@ -49,7 +49,7 @@ pgfault(struct UTrapframe *utf)
         goto err;
     }
     memcpy(temp, addr, PGSIZE);
-    r = sys_page_map(thisenv->env_id, temp, thisenv->env_id, addr, pte & 0x7);
+    r = sys_page_map(thisenv->env_id, temp, thisenv->env_id, addr, PTE_P | PTE_W | PTE_U);
     if (r != 0) {
         ERR("remap page failed\n");
         goto err;
@@ -62,8 +62,8 @@ pgfault(struct UTrapframe *utf)
     goto end;
 
 err:
-    panic("handler page fault failed, fault va: %p, fault eip: 0x%x, errcode: 0x%x, r: %e\n",
-          addr, utf->utf_eip, err, r);
+    panic("handler page fault failed, fault va: %p, pte: 0x%08x, fault eip: 0x%x, errcode: 0x%x, r: %e\n",
+          addr, pte, utf->utf_eip, err, r);
 end:
     return;
 }
@@ -74,7 +74,7 @@ end:
 // the new mapping must be created copy-on-write, and then our mapping must be
 // marked copy-on-write as well.  (Exercise: Why do we need to mark ours
 // copy-on-write again if it was already copy-on-write at the beginning of
-// this function? Answer: to increase refcnt of ppage)
+// this function? Answer: also trigger cow when page is written by parent)
 //
 // Returns: 0 on success, < 0 on error.
 // It is also OK to panic on error.
@@ -85,15 +85,24 @@ duppage(envid_t envid, unsigned pn)
 	int ret = 0;
 	// LAB 4: Your code here.
     pte_t pte = uvpt[pn];
-    int perm = (pte & PTE_COW) != 0 || (pte & PTE_W) != 0 ? PTE_P | PTE_U | PTE_COW
-                                                          : PTE_P | PTE_U;
+    int perm = 0;
+    if ((pte & PTE_SHARE) != 0) {
+        /* shared page */
+        perm = pte & PTE_SYSCALL;
+    } else if ((pte & PTE_COW) != 0 || (pte & PTE_W) != 0) {
+        /* cow page */
+        perm = PTE_P | PTE_U | PTE_COW;
+    } else {
+        /* read only page */
+        perm = PTE_P | PTE_U;
+    }
     uintptr_t va = pn * PGSIZE;
     ret = sys_page_map(thisenv->env_id, (void *)va, envid, (void *)va, perm);
     if (ret != 0) {
         ERR("map child cow page failed, 0x%08x\n", va);
         goto end;
     }
-    ret = sys_page_map(thisenv->env_id, (void *)va, envid, (void *)va, perm);
+    ret = sys_page_map(thisenv->env_id, (void *)va, thisenv->env_id, (void *)va, perm);
     if (ret != 0) {
         ERR("remap self page failed, 0x%08x\n", va);
         goto unmap_child;
@@ -203,10 +212,10 @@ fork(void)
     } else if (env_id > 0) {
         /* parent */
         int ret = 0;
-        /* 
+        /*
          * 'thisenv' should be set without any pgfault in child process,
-         * otherwise there is no way to correct thisenv->env_id, so that we cannot 
-         * handle any page fault including the one caused by access 'thisenv' 
+         * otherwise there is no way to correct thisenv->env_id, so that we cannot
+         * handle any page fault including the one caused by access 'thisenv'
          * with the incorrect env_id.
          */
         ret = dup_normal_page(env_id, (void *)ROUNDDOWN((uintptr_t)&thisenv, PGSIZE));

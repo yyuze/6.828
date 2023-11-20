@@ -214,7 +214,26 @@ serve_read(envid_t envid, union Fsipc *ipc)
 		cprintf("serve_read %08x %08x %08x\n", envid, req->req_fileid, req->req_n);
 
 	// Lab 5: Your code here:
-	return 0;
+    ssize_t r = 0;
+    struct OpenFile *of = NULL;
+    r = openfile_lookup(envid, req->req_fileid, &of);
+    if (r != 0) {
+        ERR("get opened file failed, %e\n", r);
+        goto end;
+    }
+    struct File *f = of->o_file;
+    void *buf = ret->ret_buf;
+    size_t count = MIN(req->req_n, sizeof(ret->ret_buf));
+    off_t offset = of->o_fd->fd_offset;
+    r = file_read(f, buf, count, offset);
+    if (r < 0) {
+        ERR("read file faield, %e\n", r);
+        goto end;
+    }
+    of->o_fd->fd_offset += r;
+
+end:
+	return (int)r;
 }
 
 
@@ -229,7 +248,26 @@ serve_write(envid_t envid, struct Fsreq_write *req)
 		cprintf("serve_write %08x %08x %08x\n", envid, req->req_fileid, req->req_n);
 
 	// LAB 5: Your code here.
-	panic("serve_write not implemented");
+    ssize_t ret = 0;
+    struct OpenFile *of = NULL;
+    ret = openfile_lookup(envid, req->req_fileid, &of);
+    if (ret != 0) {
+        ERR("get opened file failed, %e\n", ret);
+        goto end;
+    }
+    struct File *f = of->o_file;
+    void *buf = req->req_buf;
+    size_t count = MIN(req->req_n, sizeof(req->req_buf));
+    off_t offset = of->o_fd->fd_offset;
+    ret = file_write(f, buf, count, offset);
+    if (ret < 0) {
+        ERR("write file failed, %e\n", ret);
+        goto end;
+    }
+    of->o_fd->fd_offset += ret;
+
+end:
+    return (int)ret;
 }
 
 // Stat ipc->stat.req_fileid.  Return the file's struct Stat to the

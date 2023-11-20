@@ -1,5 +1,7 @@
 
 #include "fs.h"
+extern struct Super *super;		// superblock
+extern uint32_t *bitmap;		// bitmap blocks mapped in memory
 
 // Return the virtual address of this disk block.
 void*
@@ -21,7 +23,7 @@ va_is_mapped(void *va)
 bool
 va_is_dirty(void *va)
 {
-	return (uvpt[PGNUM(va)] & PTE_D) != 0;
+    return (uvpd[PDX(va)] & PTE_P) ? (uvpt[PGNUM(va)] & PTE_D) != 0 : 0;
 }
 
 // Fault any disk block that is read in to memory by
@@ -31,12 +33,11 @@ bc_pgfault(struct UTrapframe *utf)
 {
 	void *addr = (void *) utf->utf_fault_va;
 	uint32_t blockno = ((uint32_t)addr - DISKMAP) / BLKSIZE;
-	int r;
-
+	int ret;
 	// Check that the fault was within the block cache region
 	if (addr < (void*)DISKMAP || addr >= (void*)(DISKMAP + DISKSIZE))
 		panic("page fault in FS: eip %08x, va %08x, err %04x",
-		      utf->utf_eip, addr, utf->utf_err);
+              utf->utf_eip, addr, utf->utf_err);
 
 	// Sanity check the block number.
 	if (super && blockno >= super->s_nblocks)
@@ -48,11 +49,23 @@ bc_pgfault(struct UTrapframe *utf)
 	// the disk.
 	//
 	// LAB 5: you code here:
+    addr = (void *)(ROUNDDOWN((uintptr_t)addr, PGSIZE));
+    ret = sys_page_alloc(0, addr, PTE_P | PTE_W | PTE_U);
+    if (ret != 0)
+        panic("allocate page on %08x failed, %e\n", (uintptr_t)addr, ret);
+    uint32_t secno = blockno * BLKSECTS;
+    /* fetch one PAGE at once */
+    for (size_t acc = 0; acc < PGSIZE; acc += BLKSIZE) {
+        /* read one block at once */
+        ret = ide_read(secno + acc / SECTSIZE, (void *)((uintptr_t)addr + acc), BLKSECTS);
+        if (ret != 0)
+            panic("ide read failed\n");
+    }
 
 	// Clear the dirty bit for the disk block page since we just read the
 	// block from disk
-	if ((r = sys_page_map(0, addr, 0, addr, uvpt[PGNUM(addr)] & PTE_SYSCALL)) < 0)
-		panic("in bc_pgfault, sys_page_map: %e", r);
+	if ((ret = sys_page_map(0, addr, 0, addr, uvpt[PGNUM(addr)] & PTE_SYSCALL)) < 0)
+		panic("in bc_pgfault, sys_page_map: %e", ret);
 
 	// Check that the block we read was allocated. (exercise for
 	// the reader: why do we do this *after* reading the block
@@ -71,13 +84,33 @@ bc_pgfault(struct UTrapframe *utf)
 void
 flush_block(void *addr)
 {
+    asm volatile("lock; addl $0, 0(%esp)");
 	uint32_t blockno = ((uint32_t)addr - DISKMAP) / BLKSIZE;
 
 	if (addr < (void*)DISKMAP || addr >= (void*)(DISKMAP + DISKSIZE))
 		panic("flush_block of bad va %08x", addr);
 
 	// LAB 5: Your code here.
-	panic("flush_block not implemented");
+    /*
+     * NOTE: qemu may not set dirty bit of pte some time, so we do not check dirty bit.
+     * Is that a bug?
+     */
+    //if (!va_is_mapped(addr) || !va_is_dirty(addr))
+    if (!va_is_mapped(addr))
+        return;
+    int ret = 0;
+    addr = (void *)ROUNDDOWN((uintptr_t)addr, PGSIZE);
+    uint32_t secno = blockno * BLKSECTS;
+    /* flush one PAGE at once */
+    for (size_t acc = 0; acc < PGSIZE; acc += BLKSIZE) {
+        /* write one block at once */
+        ret = ide_write(secno + acc / SECTSIZE, (void *)((uintptr_t)addr + acc), BLKSECTS);
+        if (ret != 0)
+            panic("ide write failed\n");
+    }
+    ret = sys_page_map(0, addr, 0, addr, uvpt[PGNUM(addr)] & PTE_SYSCALL);
+    if (ret != 0)
+        panic("mark page not dirty failed: %e\n", ret);
 }
 
 // Test that the block cache works, by smashing the superblock and
@@ -100,7 +133,7 @@ check_bc(void)
 	sys_page_unmap(0, diskaddr(1));
 	assert(!va_is_mapped(diskaddr(1)));
 
-	// read it back in
+    // read it back in
 	assert(strcmp(diskaddr(1), "OOPS!\n") == 0);
 
 	// fix it
