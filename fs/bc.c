@@ -1,5 +1,7 @@
 
 #include "fs.h"
+extern struct Super *super;		// superblock
+extern uint32_t *bitmap;		// bitmap blocks mapped in memory
 
 // Return the virtual address of this disk block.
 void*

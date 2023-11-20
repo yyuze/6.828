@@ -3,6 +3,9 @@
 
 #include "fs.h"
 
+extern struct Super *super;		// superblock
+extern uint32_t *bitmap;		// bitmap blocks mapped in memory
+
 static char *msg = "This is the NEW message of the day!\n\n";
 
 void
