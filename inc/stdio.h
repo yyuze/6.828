@@ -30,4 +30,8 @@ int	vfprintf(int fd, const char *fmt, va_list);
 // lib/readline.c
 char*	readline(const char *prompt);
 
+#define INFO(fmt, ...) cprintf(fmt, ##__VA_ARGS__)
+#define ERR(fmt, ...) cprintf("[error] "fmt, ##__VA_ARGS__)
+#define DBG(fmt, ...) cprintf("[debug] "fmt, ##__VA_ARGS__)
+
 #endif /* !JOS_INC_STDIO_H */
