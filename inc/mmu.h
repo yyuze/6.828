@@ -169,7 +169,7 @@ struct Segdesc {
 // Segment that is loadable but faults when used
 #define SEG_FAULT	{ 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0 }
 // Normal segment
-#define SEG(type, base, lim, dpl) 					\
+#define SEG(type, base, lim, dpl)					\
 { ((lim) >> 12) & 0xffff, (base) & 0xffff, ((base) >> 16) & 0xff,	\
     type, 1, dpl, 1, (unsigned) (lim) >> 28, 0, 0, 1, 1,		\
     (unsigned) (base) >> 24 }
@@ -254,15 +254,15 @@ struct Taskstate {
 
 // Gate descriptors for interrupts and traps
 struct Gatedesc {
-	unsigned gd_off_15_0 : 16;   // low 16 bits of offset in segment
-	unsigned gd_sel : 16;        // segment selector
-	unsigned gd_args : 5;        // # args, 0 for interrupt/trap gates
-	unsigned gd_rsv1 : 3;        // reserved(should be zero I guess)
-	unsigned gd_type : 4;        // type(STS_{TG,IG32,TG32})
-	unsigned gd_s : 1;           // must be 0 (system)
-	unsigned gd_dpl : 2;         // descriptor(meaning new) privilege level
-	unsigned gd_p : 1;           // Present
-	unsigned gd_off_31_16 : 16;  // high bits of offset in segment
+	unsigned gd_off_15_0        : 16;   // low 16 bits of offset in segment
+	unsigned gd_sel             : 16;   // segment selector
+	unsigned gd_args            : 5;    // # args, 0 for interrupt/trap gates
+	unsigned gd_rsv1            : 3;    // reserved(should be zero I guess)
+	unsigned gd_type            : 4;    // type(STS_{TG,IG32,TG32})
+	unsigned gd_s               : 1;    // must be 0 (system)
+	unsigned gd_dpl             : 2;    // descriptor(meaning new) privilege level
+	unsigned gd_p               : 1;    // Present
+	unsigned gd_off_31_16       : 16;   // high bits of offset in segment
 };
 
 // Set up a normal interrupt/trap gate descriptor.

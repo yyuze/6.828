@@ -86,6 +86,44 @@ struct UTrapframe {
 	uintptr_t utf_esp;
 } __attribute__((packed));
 
+void trap_devide(void);
+void trap_debug(void);
+void trap_non_mask_interrupt(void);
+void trap_breakpointer(void);
+void trap_overflow(void);
+void trap_bounds_check(void);
+void trap_illegal_opcode(void);
+void trap_device_not_available(void);
+void trap_double_fault(void);
+void trap_invalid_task_switch_segment(void);
+void trap_segment_not_present(void);
+void trap_stack_exception(void);
+void trap_general_protection_fault(void);
+void trap_page_fault(void);
+void trap_floating_point_error(void);
+void trap_alignment_check(void);
+void trap_machine_check(void);
+void trap_SIMD_floating_point_error(void);
+void trap_SIMD_floating_point_error(void);
+void trap_syscall(void);
+
+void trap_irq_0(void);
+void trap_irq_1(void);
+void trap_irq_2(void);
+void trap_irq_3(void);
+void trap_irq_4(void);
+void trap_irq_5(void);
+void trap_irq_6(void);
+void trap_irq_7(void);
+void trap_irq_8(void);
+void trap_irq_9(void);
+void trap_irq_10(void);
+void trap_irq_11(void);
+void trap_irq_12(void);
+void trap_irq_13(void);
+void trap_irq_14(void);
+void trap_irq_15(void);
+
 #endif /* !__ASSEMBLER__ */
 
 #endif /* !JOS_INC_TRAP_H */

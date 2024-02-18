@@ -55,7 +55,20 @@ again:
 			// then close the original 'fd'.
 
 			// LAB 5: Your code here.
-			panic("< redirection not implemented");
+            r = open(t, O_RDONLY);
+            if (r < 0) {
+                ERR("open %s for read: %e\n", t, r);
+                exit();
+            }
+            fd = r;
+            if (fd != 0) {
+                r = dup(fd, 0);
+                if (r != 0) {
+                    ERR("dup fd to stdin failed, %e\n", r);
+                    exit();
+                }
+                close(fd);
+            } 
 			break;
 
 		case '>':	// Output redirection

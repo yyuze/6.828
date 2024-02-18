@@ -302,6 +302,23 @@ static int
 copy_shared_pages(envid_t child)
 {
 	// LAB 5: Your code here.
-	return 0;
+    int ret = 0;
+    for (uintptr_t i = 0; i < USTACKTOP - PGSIZE; i += PGSIZE) {
+        unsigned pn = i >> 12;
+        unsigned pdn = pn >> 10;
+        if ((uvpd[pdn] & PTE_P) == 0 || (uvpt[pn] & PTE_P) == 0)
+            continue;
+        pte_t pte = uvpt[pn];
+        if ((pte & PTE_SHARE) != 0) {
+            uintptr_t va = pn * PGSIZE;
+            ret = sys_page_map(thisenv->env_id, (void *)va, child, (void *)va, pte & PTE_SYSCALL);
+            if (ret != 0) {
+                ERR("map child cow page failed, 0x%08x\n", va);
+                goto end;
+            }
+        }
+    }
+end:
+	return ret;
 }
 

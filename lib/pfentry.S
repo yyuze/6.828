@@ -37,7 +37,7 @@ _pgfault_upcall:
 	movl _pgfault_handler, %eax
 	call *%eax
 	addl $4, %esp			// pop function argument
-	
+
 	// Now the C page fault handler has returned and you must return
 	// to the trap time state.
 	// Push trap-time %eip onto the trap-time stack.
@@ -65,18 +65,61 @@ _pgfault_upcall:
 	// ways as registers become unavailable as scratch space.
 	//
 	// LAB 4: Your code here.
+    addl $8, %esp               // pop utf_err and utf_fault_va
+    //	trap-time esp
+    //	trap-time eflags
+    //	trap-time eip
+    //	utf_regs.reg_eax
+    //	...
+    //	utf_regs.reg_esi
+    //	utf_regs.reg_edi        <-- %esp
+    //	utf_err (error code)
+    //	utf_fault_va
+
+    movl 32(%esp), %eax     // save trap-time eip to eax
+    movl 40(%esp), %ebx     // save trap-time esp to ebx
+    movl %esp, %ecx         // save current esp to ecx
+    movl %ebx, %esp         // switch to trap-time stack
+    pushl %eax              // push trap-time eip to trap-time stack
+    movl %esp, %ebx         // save trap-time esp to ebx
+    movl %ecx, %esp         // switch stack back
+    movl %ebx, 40(%esp)     // update trap-time esp
 
 	// Restore the trap-time registers.  After you do this, you
 	// can no longer modify any general-purpose registers.
 	// LAB 4: Your code here.
+    popal                       // pop utf_regs
+    addl $4, %esp               // pop eip
+    //	trap-time esp
+    //	trap-time eflags        <-- %esp
+    //	trap-time eip
+    //	utf_regs.reg_eax
+    //	...
+    //	utf_regs.reg_esi
+    //	utf_regs.reg_edi
+    //	utf_err (error code)
+    //	utf_fault_va
 
 	// Restore eflags from the stack.  After you do this, you can
 	// no longer use arithmetic operations or anything else that
 	// modifies eflags.
 	// LAB 4: Your code here.
+    popfl                       // pop utf_eflags
+    //	trap-time esp           <-- %esp
+    //	trap-time eflags
+    //	trap-time eip
+    //	utf_regs.reg_eax
+    //	...
+    //	utf_regs.reg_esi
+    //	utf_regs.reg_edi
+    //	utf_err (error code)
+    //	utf_fault_va
+
 
 	// Switch back to the adjusted trap-time stack.
 	// LAB 4: Your code here.
+    popl %esp                   // pop utf_esp to esp register
 
 	// Return to re-execute the instruction that faulted.
 	// LAB 4: Your code here.
+    ret
