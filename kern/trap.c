@@ -263,15 +263,16 @@ trap_dispatch(struct Trapframe *tf)
 	// interrupt using lapic_eoi() before calling the scheduler!
 	// LAB 4: Your code here.
     if (tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER) {
+        // Add time tick increment to clock interrupts.
+        // Be careful! In multiprocessors, clock interrupts are
+        // triggered on every CPU.
+        // LAB 6: Your code here.
+        if (thiscpu == bootcpu)
+            time_tick();
+
         lapic_eoi();
         sched_yield();
     }
-
-	// Add time tick increment to clock interrupts.
-	// Be careful! In multiprocessors, clock interrupts are
-	// triggered on every CPU.
-	// LAB 6: Your code here.
-
 
 	// Handle keyboard and serial interrupts.
 	// LAB 5: Your code here.
@@ -356,7 +357,6 @@ trap(struct Trapframe *tf)
 		sched_yield();
 }
 
-
 void
 page_fault_handler(struct Trapframe *tf)
 {
@@ -369,8 +369,7 @@ page_fault_handler(struct Trapframe *tf)
 
 	// LAB 3: Your code here.
 	if (tf->tf_cs == GD_KT)
-        panic("page fault in kernel, va: 0x%08x, ip: 0x%08x\n",
-               fault_va, tf->tf_eip);
+        panic("page fault in kernel, va: 0x%08x, ip: 0x%08x\n", fault_va, tf->tf_eip);
 
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.

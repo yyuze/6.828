@@ -12,6 +12,7 @@
 #include <kern/console.h>
 #include <kern/sched.h>
 #include <kern/time.h>
+#include <kern/e1000.h>
 
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
@@ -502,7 +503,19 @@ static int
 sys_time_msec(void)
 {
 	// LAB 6: Your code here.
-	panic("sys_time_msec not implemented");
+    return time_msec();
+}
+
+static int sys_net_send(void *src, size_t src_sz)
+{
+    user_mem_assert(curenv, src, src_sz, PTE_U);
+    return e1000_send(src, src_sz);
+}
+
+static int sys_net_recv(void *dst, size_t dst_sz)
+{
+    user_mem_assert(curenv, dst, dst_sz, PTE_U);
+    return e1000_recv(dst, dst_sz);
 }
 
 // Dispatches to the correct kernel function, passing the arguments.
@@ -557,6 +570,15 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
             break;
         case SYS_env_set_trapframe:
             ret = sys_env_set_trapframe((envid_t)a1, (struct Trapframe *)a2);
+            break;
+        case SYS_time_msec:
+            ret = sys_time_msec();
+            break;
+        case SYS_net_send:
+            ret = sys_net_send((void *)a1, (size_t)a2);
+            break;
+        case SYS_net_recv:
+            ret = sys_net_recv((void *)a1, (size_t)a2);
             break;
         case NSYSCALLS:
         default:

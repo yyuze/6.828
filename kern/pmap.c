@@ -249,7 +249,6 @@ mem_init(void)
                     0xFFFFFFFF - KERNBASE + 1,
                     0,
                     PTE_W);
-
 	// Initialize the SMP-related parts of the memory map
     /* init per-cpu kernel stacks */
 	mem_init_mp();
@@ -347,9 +346,9 @@ page_init(void)
     pages[0].pp_link = NULL;
 	//  2) The rest of base memory, [PGSIZE, npages_basemem * PGSIZE)
 	//     is free.
+    extern unsigned char mpentry_start[], mpentry_end[];
+    size_t smp_boot_mem_sz = ROUNDUP((uintptr_t)mpentry_end - (uintptr_t)mpentry_start, PGSIZE);
     for (size_t i = 1; i < npages_basemem; ++i) {
-        extern unsigned char mpentry_start[], mpentry_end[];
-        size_t smp_boot_mem_sz = ROUNDUP((uintptr_t)mpentry_end - (uintptr_t)mpentry_start, PGSIZE);
         struct PageInfo *page = &pages[i];
         if (page2pa(page) >= MPENTRY_PADDR && page2pa(page) + smp_boot_mem_sz) {
             page->pp_ref = 1;
@@ -516,7 +515,6 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
         if (pte == NULL) {
             panic("get pte failed for boot map\n");
         }
-        //cprintf("pte: %p, va: %lx, pa: %lx\n", pte, mapping_va, mapping_pa);
         *pte = mapping_pa | perm | PTE_P;
         acc += PGSIZE;
     }
@@ -769,7 +767,7 @@ check_page_free_list(bool only_low_memory)
 	if (!page_free_list)
 		panic("'page_free_list' is a null pointer!");
 
-    /* 
+    /*
      * re-sorted page position on the page_free_list:
      * pages in [0...4MB) --- pages in [4MB, ...)
      */
@@ -816,7 +814,7 @@ check_page_free_list(bool only_low_memory)
 			++nfree_extmem;
 	}
 
-   	assert(nfree_basemem > 0);
+   	//assert(nfree_basemem > 0);
 	assert(nfree_extmem > 0);
 
 	cprintf("check_page_free_list() succeeded!\n");

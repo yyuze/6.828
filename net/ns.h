@@ -20,3 +20,27 @@ void input(envid_t ns_envid);
 /* output.c */
 void output(envid_t ns_envid);
 
+static bool buse[QUEUE_SIZE];
+
+static inline void *get_buffer(void) {
+	void *va;
+
+	int i;
+	for (i = 0; i < QUEUE_SIZE; i++)
+		if (!buse[i]) break;
+
+	if (i == QUEUE_SIZE) {
+		panic("NS: buffer overflow");
+		return 0;
+	}
+
+	va = (void *)(REQVA + i * PGSIZE);
+	buse[i] = 1;
+
+	return va;
+}
+
+static inline void put_buffer(void *va) {
+	int i = ((uint32_t)va - REQVA) / PGSIZE;
+	buse[i] = 0;
+}

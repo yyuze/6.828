@@ -47,6 +47,8 @@ KERN_SRCFILES +=	kern/e100.c \
 # Only build files if they exist.
 KERN_SRCFILES := $(wildcard $(KERN_SRCFILES))
 
+# NOTE:
+# For size of kernel not overheading, useless binary images is not linked into kernel
 # Binary program images to embed within the kernel.
 # Binary files for LAB3
 KERN_BINFILES :=	user/hello \

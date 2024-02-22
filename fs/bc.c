@@ -1,5 +1,7 @@
 
 #include "fs.h"
+#include <inc/x86.h>
+
 extern struct Super *super;		// superblock
 extern uint32_t *bitmap;		// bitmap blocks mapped in memory
 
@@ -84,7 +86,7 @@ bc_pgfault(struct UTrapframe *utf)
 void
 flush_block(void *addr)
 {
-    asm volatile("lock; addl $0, 0(%esp)");
+    mb();
 	uint32_t blockno = ((uint32_t)addr - DISKMAP) / BLKSIZE;
 
 	if (addr < (void*)DISKMAP || addr >= (void*)(DISKMAP + DISKSIZE))

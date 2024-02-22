@@ -77,7 +77,34 @@ static int
 send_data(struct http_request *req, int fd)
 {
 	// LAB 6: Your code here.
-	panic("send_data not implemented");
+    int ret = 0;
+    char buf[256];
+    size_t total = 0;
+    while (true) {
+        /* read from file */
+        ret = read(fd, buf, sizeof(buf));
+        if (ret == -1) {
+            ERR("read file failed\n");
+            goto end;
+        }
+        size_t cnt = ret;
+        if (cnt == 0)
+            break;
+        /* write to sock */
+        size_t acc = 0;
+        while (acc != cnt) {
+            ret = write(req->sock, (void *)((uintptr_t)buf + acc), cnt - acc);
+            if (ret == -1) {
+                ERR("write sock failed\n");
+                goto end;
+            }
+            acc += ret;
+        }
+        total += cnt;
+    }
+    ret = total;
+end:
+    return ret;
 }
 
 static int
@@ -223,24 +250,44 @@ send_file(struct http_request *req)
 	// set file_size to the size of the file
 
 	// LAB 6: Your code here.
-	panic("send_file not implemented");
+    r = open(req->url, O_RDONLY);
+    if (r == -1) {
+        ERR("open file failed, %s\n", req->url);
+        (void)send_error(req, 404);
+        goto end;
+    }
+    fd = r;
+
+    struct Stat stat;
+    r = fstat(fd, &stat);
+    if (r != 0) {
+        ERR("stat file failed, %s\n", req->url);
+        (void)send_error(req, 404);
+        goto end;
+    }
+    file_size = stat.st_size;
 
 	if ((r = send_header(req, 200)) < 0)
-		goto end;
+		goto close_fd;
 
 	if ((r = send_size(req, file_size)) < 0)
-		goto end;
+		goto close_fd;
 
 	if ((r = send_content_type(req)) < 0)
-		goto end;
+		goto close_fd;
 
 	if ((r = send_header_fin(req)) < 0)
-		goto end;
+		goto close_fd;
 
 	r = send_data(req, fd);
+    if (r == -1) {
+        ERR("send data failed\n");
+        (void)send_error(req, 404);
+    }
 
-end:
+close_fd:
 	close(fd);
+end:
 	return r;
 }
 

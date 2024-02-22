@@ -3,6 +3,11 @@
 
 #include <inc/types.h>
 
+static inline void mb(void)
+{
+    asm volatile("lock; addl $0, 0(%esp)");
+}
+
 static inline void
 breakpoint(void)
 {

@@ -47,34 +47,8 @@ static envid_t timer_envid;
 static envid_t input_envid;
 static envid_t output_envid;
 
-static bool buse[QUEUE_SIZE];
 static int next_i(int i) { return (i+1) % QUEUE_SIZE; }
 static int prev_i(int i) { return (i ? i-1 : QUEUE_SIZE-1); }
-
-static void *
-get_buffer(void) {
-	void *va;
-
-	int i;
-	for (i = 0; i < QUEUE_SIZE; i++)
-		if (!buse[i]) break;
-
-	if (i == QUEUE_SIZE) {
-		panic("NS: buffer overflow");
-		return 0;
-	}
-
-	va = (void *)(REQVA + i * PGSIZE);
-	buse[i] = 1;
-
-	return va;
-}
-
-static void
-put_buffer(void *va) {
-	int i = ((uint32_t)va - REQVA) / PGSIZE;
-	buse[i] = 0;
-}
 
 static void
 lwip_init(struct netif *nif, void *if_state,

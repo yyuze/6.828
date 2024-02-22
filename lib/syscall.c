@@ -7,7 +7,6 @@ static inline int32_t
 syscall(int num, int check, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
 {
 	int32_t ret;
-
 	// Generic system call: pass system call number in AX,
 	// up to five parameters in DX, CX, BX, DI, SI.
 	// Interrupt kernel with T_SYSCALL.
@@ -121,4 +120,14 @@ unsigned int
 sys_time_msec(void)
 {
 	return (unsigned int) syscall(SYS_time_msec, 0, 0, 0, 0, 0, 0);
+}
+
+int sys_net_send(void *src, size_t src_sz)
+{
+    return syscall(SYS_net_send, 0, (uint32_t)src, (uint32_t)src_sz, 0, 0, 0);
+}
+
+int sys_net_recv(void *dst, size_t dst_sz)
+{
+    return syscall(SYS_net_recv, 0, (uint32_t)dst, (uint32_t)dst_sz, 0, 0, 0);
 }
